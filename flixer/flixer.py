@@ -108,15 +108,18 @@ def send_info(text, color="cyan", newline=""):
 
 CONFIG_FILE = os.path.join(BIN_DIR, "config.json")
 
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=4)
+
+def load_config():
+    default_config = {"typing_speed": 0.05}
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    else:
+        save_config(default_config)
+        return default_config
 
 config = load_config()
 typing_speed = config.get("typing_speed")
@@ -194,7 +197,7 @@ def main_menu():
 def menu_loop():
     global typing_speed
     global page
-    typing_speed = config["typing_speed"] or 0.05 # Default speed
+    typing_speed = config.get("typing_speed") or 0.05 # Default speed
     username = os.getlogin()
 
     while True:
