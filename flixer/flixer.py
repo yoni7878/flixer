@@ -2,6 +2,7 @@ import subprocess
 import sys
 import time
 import os
+import threading
 
 # ─── Auto-install missing pip packages ────────────────────────────────────────────
 def install_if_missing(package):
@@ -19,7 +20,8 @@ packages = {
     "keyboard": "keyboard",
     "pyautogui": "pyautogui",
     "webdriver-manager": "webdriver_manager",
-    "datetime": "datetime"
+    "datetime": "datetime",
+    "pygame": "pygame"
 }
 
 for pkg_name, import_name in packages.items():
@@ -48,13 +50,21 @@ import keyboard
 import json
 import random
 from datetime import datetime
+import pygame
 
 console = Console()
 page = 1  # Needed to avoid NameError when referencing 'page' in main_menu
 
 
+def play(name: str):
+    pygame.mixer.init()
+    pygame.mixer.music.load(f"sounds/{name}")
+    pygame.mixer.music.play()
+
 # ─── Rich menu functions ─────────────────────────────────────────────────────────
 def show_command_list():
+    play("notif.wav")
+
     help_width = 60
     help_top = "┌" + "─" * help_width + "┐"
     help_bottom = "└" + "─" * help_width + "┘"
@@ -84,6 +94,8 @@ BASE_DIR = "logs"  # You can change this folder name
 os.makedirs(BASE_DIR, exist_ok=True)  # Create it if it doesn't exist
 BIN_DIR = "config"
 os.makedirs(BIN_DIR, exist_ok=True)
+SOUND_DIR = "sounds"
+os.makedirs(SOUND_DIR, exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")  # safe for filenames
 
@@ -91,6 +103,7 @@ LOG_FILE = os.path.join(BASE_DIR, f"{timestamp}.log")
 INFO_LOG = os.path.join(BASE_DIR, f"{timestamp}.info")
 
 def send_log(text, color="white", newline=""):
+    play("notif.wav")
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     msg = f"{newline}[{current_time}] [LOG]: {text}"
     console.print(Text(msg, style=color))
@@ -105,8 +118,11 @@ def send_info(text, color="cyan", newline=""):
         f.write(msg + "\n")
 
 # Config 
+TAP_DIR = os.path.join(SOUND_DIR, "tap-effects")
 
 CONFIG_FILE = os.path.join(BIN_DIR, "config.json")
+
+pygame.mixer.init()
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
@@ -120,6 +136,34 @@ def load_config():
     else:
         save_config(default_config)
         return default_config
+    
+def get_rand_tap():
+    if os.path.exists(TAP_DIR):
+        files = [f for f in os.listdir(TAP_DIR) if f.endswith(".wav")]
+        if files:
+            return os.path.join(TAP_DIR, random.choice(files))
+    return None
+
+def none(char):
+
+    return char
+
+def play_tap_a(text):
+    for char in text:
+        time.sleep(typing_speed + 0.002)
+        none(char)
+        tap_path = get_rand_tap()
+        if tap_path:
+            sound = pygame.mixer.Sound(tap_path)
+            sound.set_volume(0.7)
+            sound.play()
+
+def play_tap():
+    tap_path = get_rand_tap()
+    if tap_path:
+        sound = pygame.mixer.Sound(tap_path)
+        sound.set_volume(0.7)
+        sound.play()
 
 config = load_config()
 typing_speed = config.get("typing_speed")
@@ -149,7 +193,7 @@ def main_menu():
         "██╔══╝  ██║     ██║ ██╔██╗ ██╔══╝  ██╔══██╗",
         "██║     ███████╗██║██╔╝ ██╗███████╗██║  ██║",
         "╚═╝     ╚══════╝╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝",
-        "\n\nThe best selenium typing cheat!",
+        f"\n\nThe best selenium typing cheat!",
         f"\n Your speed is: {typing_speed}"
     ]
 
@@ -193,6 +237,7 @@ def main_menu():
         )
     )
     console.print(Align.center(Text(bottom_bar, style="dim green")))
+    play("start.wav")
 
 def menu_loop():
     global typing_speed
@@ -207,8 +252,10 @@ def menu_loop():
         # Handle page switching
         if token == "next":
             page = 2 if page == 1 else 1
+            play_tap()
             send_info(f"Switched to page {page}.", "green", "\n")
             main_menu()
+            play("next.wav")
             continue
 
         # Handle typing game selections
@@ -229,6 +276,7 @@ def menu_loop():
 
         # Other commands
         if token == "help":
+            play_tap()
             help_text = [
                 "Menu explained:",
                 "A menu meant for cheating in typing games.",
@@ -245,6 +293,7 @@ def menu_loop():
                 "",
                 "Type 'next' to switch pages!"
             ]
+            play("notif.wav")
 
             max_len = max(len(line) for line in help_text)
             box_width = max_len + 4  # padding
@@ -264,8 +313,10 @@ def menu_loop():
             console.print("[bold yellow]Exiting program...[/bold yellow]")
             sys.exit()
         elif token.lower() == "prev":
+            play_tap()
             page = 1 if page == 2 else 2
             main_menu()
+            play("next.wav")
             send_info(f"Switched to page {page}.", "green", "\n")
             continue
         elif token in ["reload", "restart"]:
@@ -278,7 +329,6 @@ def menu_loop():
 
         elif token in ["clear", "cls"]:
             main_menu()
-            
         elif token == "version":
             console.print("\n[bold cyan]Flixer V1.2[/bold cyan]")
         elif token == "speed":
@@ -443,10 +493,17 @@ def get_humanbenchmark_text(driver):
         return ""
 
 
+import threading
+from pygame import mixer
+
+import threading
+
 def type_text(driver, site):
     global typing_speed
+    play("start.wav")
     send_info(f"Starting typing for {site} with speed {typing_speed} sec/char.", "cyan", "\n")
 
+    # Get text and selector based on site
     if site == "nitrotype":
         text = get_nitrotype_text(driver)
         selector = "input.dash-copy-input"
@@ -462,10 +519,9 @@ def type_text(driver, site):
     elif site == "humanbenchmark":
         text = get_humanbenchmark_text(driver)
         selector = "div.letters"
-    elif site == "typerio":  # Add this condition
+    elif site == "typerio":
         text = get_typerio_text(driver)
         selector = "input#input"
-
     else:
         send_log("Invalid site for typing.", "red", "\n")
         return
@@ -475,57 +531,75 @@ def type_text(driver, site):
         return
 
     try:
-        if site == "typeracer":
-            input_box = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-            )
-            input_box.click()
-            input_box.clear()
-            for char in text:
-                input_box.send_keys(char)
-                time.sleep(typing_speed)
+        # Typing logic
+        def typing_job():
+            if site == "typeracer":
+                input_box = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                input_box.click()
+                input_box.clear()
+                for char in text:
+                    input_box.send_keys(char)
+                    time.sleep(typing_speed)
 
-        elif site == "keymash":
-            input_box = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-            )
-            input_box.click()
-            time.sleep(0.3)
-            input_box.clear()
-            for char in text:
-                input_box.send_keys(char)
-                time.sleep(typing_speed)
+            elif site == "keymash":
+                input_box = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                input_box.click()
+                time.sleep(0.3)
+                input_box.clear()
+                for char in text:
+                    input_box.send_keys(char)
+                    time.sleep(typing_speed)
 
-        elif site == "monkeytype":
-            driver.execute_script(f"document.querySelector('{selector}').focus()")
-            pyautogui.typewrite(text, interval=typing_speed)
+            elif site == "monkeytype":
+                driver.execute_script(f"document.querySelector('{selector}').focus()")
+                pyautogui.typewrite(text, interval=typing_speed)
 
-        elif site == "humanbenchmark":
-            typing_area = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-            )
+            elif site == "humanbenchmark":
+                typing_area = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
+                )
+                typing_area.click()
+                pyautogui.typewrite(text, interval=typing_speed)
 
-            typing_area.click()
-            pyautogui.typewrite(text, interval=typing_speed)
+            elif site == "typerio":
+                input_div = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="button"].Editor_container__DN_YS'))
+                )
+                input_div.click()
+                time.sleep(0.3)
+                input_box = input_div.find_element(By.CSS_SELECTOR, 'input')
+                input_box.clear()
+                for char in text:
+                    input_box.send_keys(char)
+                    time.sleep(typing_speed)
 
-        elif site == "typerio":
-            input_div = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'div[role="button"].Editor_container__DN_YS'))
-            )
-            input_div.click()
-            time.sleep(0.3)
+            else:  # Default (e.g. nitrotype)
+                driver.execute_script(f"document.querySelector('{selector}').focus()")
+                pyautogui.typewrite(text, interval=typing_speed)
 
-            # Now target the actual input element inside the div to type into
-            input_box = input_div.find_element(By.CSS_SELECTOR, 'input')
+        # Sound logic
+        def sound_job():
+            if site in ["typeracer", "keymash", "typerio"]:
+                for char in text:
+                    if char.strip():
+                        play_tap()
+                    time.sleep(typing_speed)
+            else:
+                play_tap_a(text)  # Assume this handles the full string as one sound flow
 
-            input_box.clear()
-            for char in text:
-                input_box.send_keys(char)
-                time.sleep(typing_speed)
+        # Start typing and sound in parallel
+        typing_thread = threading.Thread(target=typing_job)
+        sound_thread = threading.Thread(target=sound_job)
 
-        else:
-            driver.execute_script(f"document.querySelector('{selector}').focus()")
-            pyautogui.typewrite(text, interval=typing_speed)
+        typing_thread.start()
+        sound_thread.start()
+
+        typing_thread.join()
+        sound_thread.join()
 
         send_log("Finished typing text.", "green", "\n")
 
